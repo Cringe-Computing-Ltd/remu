@@ -32,14 +32,7 @@ int main() {
     for (int i = 0; i < wc; i++) {
         mapper.write(i, rom[i]);
     }
-
-    // Load font
-    for (int i = 0; i < 128; i++) {
-        mapper.write(0xF800 + (i * 4), (font8x8_basic[i][1] << 8) | font8x8_basic[i][0]);
-        mapper.write(0xF800 + (i * 4) + 1, (font8x8_basic[i][3] << 8) | font8x8_basic[i][2]);
-        mapper.write(0xF800 + (i * 4) + 2, (font8x8_basic[i][5] << 8) | font8x8_basic[i][4]);
-        mapper.write(0xF800 + (i * 4) + 3, (font8x8_basic[i][7] << 8) | font8x8_basic[i][6]);
-    }
+    delete[] rom;
 
     uint64_t lastTime = SDL_GetTicks();
     bool running = true;

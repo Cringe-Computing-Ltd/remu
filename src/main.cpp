@@ -4,9 +4,8 @@
 #include "raccoon_core.h"
 #include <iostream>
 #include <fstream>
-#include "font.h"
 
-#define CPU_FREQ    (25175000.0 / 4.0)
+#define CPU_FREQ    (25175000.0 / 100.0)
 
 int main() {
     // Init SDL
@@ -22,7 +21,7 @@ int main() {
     RaccoonCore cpu(&mapper);
 
     // Load ROM
-    std::ifstream file("../../bsm/output.bin", std::ios::in | std::ios::binary | std::ios::ate);
+    std::ifstream file("/home/ryzerth/Downloads/output.bin", std::ios::in | std::ios::binary | std::ios::ate);
     int len = file.tellg();
     int wc = len / 2;
     file.seekg(0);

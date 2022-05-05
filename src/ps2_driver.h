@@ -23,7 +23,7 @@ public:
         KEY_KP_0 = 0x70,
         KEY_KP_6 = 0x74,
         KEY_F11 = 0x78,
-        KEY_KP_STAR = 0x7c,
+        KEY_KP_ASTERISK = 0x7c,
         KEY_MM_WWW_SEARCH = 0xe010,
         KEY_RIGHT_CONTROL = 0xe014,
         KEY_MM_WWW_FAVOURITES = 0xe018,

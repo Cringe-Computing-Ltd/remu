@@ -4,8 +4,9 @@
 #include "raccoon_core.h"
 #include <iostream>
 #include <fstream>
+#include "sdl_to_ps2.h"
 
-#define CPU_FREQ    (25175000.0 / 100.0)
+#define CPU_FREQ    (25175000.0 / 4.0)
 
 int main() {
     // Init SDL
@@ -17,11 +18,16 @@ int main() {
 
     // Init Computer
     VGA_GEN vga;
-    MemoryMapper mapper(&vga);
+    PS2Driver ps2;
+    MemoryMapper mapper(&vga, &ps2);
     RaccoonCore cpu(&mapper);
 
     // Load ROM
-    std::ifstream file("/home/ryzerth/Downloads/output.bin", std::ios::in | std::ios::binary | std::ios::ate);
+    std::ifstream file("../../bas/output.bin", std::ios::in | std::ios::binary | std::ios::ate);
+    if (!file.is_open()) {
+        fprintf(stderr, "Could not open ROM file");
+        return -1;
+    }
     int len = file.tellg();
     int wc = len / 2;
     file.seekg(0);
@@ -32,6 +38,8 @@ int main() {
         mapper.write(i, rom[i]);
     }
     delete[] rom;
+
+    printf("EXEC START\n");
 
     uint64_t lastTime = SDL_GetTicks();
     bool running = true;
@@ -44,21 +52,26 @@ int main() {
         // Calculate number of CPU cycles to execute
         int cycles = round(delta * CPU_FREQ / 1000.0);
 
+        // Check for any event
+        SDL_Event event;
+        while (SDL_PollEvent(&event)) {
+            if (event.type == SDL_EventType::SDL_KEYDOWN) {
+                ps2.pressKey(SDL_TO_PS2[event.key.keysym.scancode]);
+            }
+            else if (event.type == SDL_EventType::SDL_KEYUP) {
+                ps2.releaseKey(SDL_TO_PS2[event.key.keysym.scancode]);
+            }
+            else if (event.type == SDL_EventType::SDL_QUIT) {
+                running = false;
+            }
+        }
+
         // Execute cycles
         cpu.run(cycles);
 
         // Render
         vga.render(fb);
         SDL_UpdateTexture(tex, NULL, fb, 640 * sizeof(uint32_t));
-
-        // Poll events
-        SDL_Event event;
-        while (SDL_PollEvent(&event)) {
-            if (event.type == SDL_EventType::SDL_QUIT) {
-                running = false;
-            }
-        }
-
         SDL_RenderClear(ren);
         SDL_RenderCopy(ren, tex, NULL, NULL);
         SDL_RenderPresent(ren);

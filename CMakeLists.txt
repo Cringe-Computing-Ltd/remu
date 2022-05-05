@@ -9,7 +9,6 @@ else()
     add_compile_options(-std=c++17)
 endif ()
 
-
 add_executable(remu ${SRC})
 
 if (MSVC)

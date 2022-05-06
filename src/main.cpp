@@ -66,8 +66,13 @@ int main() {
             }
         }
 
+        // Interrupt cycles
+        cpu.interrupt(true);
+        cpu.run(1000);
+        cpu.interrupt(false);
+
         // Execute cycles
-        cpu.run(cycles);
+        cpu.run(cycles - 1000);
 
         // Render
         vga.render(fb);

@@ -52,7 +52,6 @@ void RaccoonCore::cycle() {
 
                 state_after_idle = FETCH;
                 state = IDLE;
-                printf("WHAT THE FUCK???\n");
 
             } else if (HALT == 0) {
                 MEM_ADDR = ip;

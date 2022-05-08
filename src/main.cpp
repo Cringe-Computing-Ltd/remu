@@ -5,16 +5,23 @@
 #include <iostream>
 #include <fstream>
 #include "sdl_to_ps2.h"
+#include "command_args.h"
 
-#define CPU_FREQ    (25175000.0 / 4.0)
+#define CPU_FREQ    (25175000.0 / 4)
 
-int main() {
-    // Init SDL
-    SDL_Init(SDL_INIT_EVERYTHING);
-    SDL_Window* win = SDL_CreateWindow("REMU: The R.A.C.C.O.O.N. Emulator", 100, 100, 640*2, 480*2, SDL_WINDOW_SHOWN);
-    SDL_Renderer* ren = SDL_CreateRenderer(win, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
-    SDL_Texture * tex = SDL_CreateTexture(ren, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STATIC, 640, 480);
-    uint32_t* fb = new uint32_t[640 * 480];
+int main(int argc, char* argv[]) {
+    // Parse arguments
+    CommandArgsParser cargs;
+    cargs.define('r', "rom", "Rom binary file", "");
+    cargs.define<int>('w', "width", "Viewport width", 640*2);
+    cargs.define<int>('h', "height", "Viewport height", 480*2);
+    cargs.parse(argc, argv);
+
+    // Check that a rom was given
+    if (cargs["rom"].s().empty()) {
+        fprintf(stderr, "No rom file given!\n");
+        return -1;
+    }
 
     // Init Computer
     VGA_GEN vga;
@@ -23,9 +30,9 @@ int main() {
     RaccoonCore cpu(&mapper);
 
     // Load ROM
-    std::ifstream file("../../bas/output.bin", std::ios::in | std::ios::binary | std::ios::ate);
+    std::ifstream file(cargs["rom"].s(), std::ios::in | std::ios::binary | std::ios::ate);
     if (!file.is_open()) {
-        fprintf(stderr, "Could not open ROM file");
+        fprintf(stderr, "Could not open ROM file\n");
         return -1;
     }
     int len = file.tellg();
@@ -39,8 +46,14 @@ int main() {
     }
     delete[] rom;
 
-    printf("EXEC START\n");
+    // Init SDL
+    SDL_Init(SDL_INIT_EVERYTHING);
+    SDL_Window* win = SDL_CreateWindow("REMU: The R.A.C.C.O.O.N. Emulator", 100, 100, cargs["width"].i(), cargs["height"].i(), SDL_WINDOW_SHOWN);
+    SDL_Renderer* ren = SDL_CreateRenderer(win, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+    SDL_Texture * tex = SDL_CreateTexture(ren, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STATIC, 640, 480);
+    uint32_t* fb = new uint32_t[640 * 480];
 
+    // Mais loop
     uint64_t lastTime = SDL_GetTicks();
     bool running = true;
     while (running) {

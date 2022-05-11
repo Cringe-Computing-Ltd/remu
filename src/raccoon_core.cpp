@@ -24,6 +24,7 @@ void RaccoonCore::cycle() {
 
     // alu_op_out: contains the last carry bit to set the flag
     uint32_t alu_op_out = 0;
+    uint16_t alu_minus = 0;
     // mult_tmp: contains the full result of a multiplication
     uint32_t mult_tmp = 0;
     // tmp
@@ -53,8 +54,8 @@ void RaccoonCore::cycle() {
 
                 state_after_idle = FETCH;
                 state = IDLE;
-
-            } else if (HALT == 0) {
+            }
+            else if (HALT == 0) {
                 MEM_ADDR = ip;
                 MEM_WE = 0;
 
@@ -81,39 +82,13 @@ void RaccoonCore::cycle() {
             dst_contd = dst;
             src_contd = src;
             
-            // get rid of this
             dst_content_contd = dst_content;
             src_content_contd = src_content;
             
             switch (opcode) {
-                // mvi: put imm into dst
+
+                // ld (r): puts [src] into dst
                 case 0b000000:
-                    MEM_ADDR = ip + 1;
-
-                    state = IDLE;
-                    state_after_idle = CONTD;
-                    // FALLTHROUGH CONTD
-                    break;
-                    
-                // mvr: move src into dst
-                case 0b000001:
-                    regs[dst] = src_content;
-
-                    ip = ip + 1;
-                    state = FETCH;
-                    break;
-                
-                // xch: exchange dst and src
-                case 0b000010:
-                    regs[src] = dst_content;
-                    regs[dst] = src_content;
-
-                    ip = ip + 1;
-                    state = FETCH;
-                    break;
-                    
-                // ldr: puts [src] into dst
-                case 0b000011:
                     MEM_ADDR = src_content;
                     
                     state = IDLE;
@@ -121,16 +96,16 @@ void RaccoonCore::cycle() {
                     // FALLTHROUGH CONTD
                     break;
 
-                // sti: store src into [imm]
-                case 0b000100:
+                // ld (i): puts [imm] in dst
+                case 0b000001:
                     MEM_ADDR = ip + 1;
 
-                    state = IDLE;
                     state_after_idle = CONTD;
+                    state = IDLE;
                     break;
-                    
-                // str: store src into [dst]
-                case 0b000101:
+
+                // st (r): store src into [dst]
+                case 0b000010:
                     MEM_ADDR = dst_content;
                     MEM_IN = src_content;
                     MEM_WE = 1;
@@ -139,9 +114,44 @@ void RaccoonCore::cycle() {
                     state = IDLE;
                     state_after_idle = FETCH;
                     break;
+
+                // st (i): store src into [imm]
+                case 0b000011:
+                    MEM_ADDR = ip + 1;
+
+                    state = IDLE;
+                    state_after_idle = CONTD;
+                    break;
+
+                // mov: move src into dst
+                case 0b000100:
+                    regs[dst] = src_content;
+
+                    ip = ip + 1;
+                    state = FETCH;
+                    break;
+
+                // ldi: put imm into dst
+                case 0b000101:
+                    MEM_ADDR = ip + 1;
+
+                    state = IDLE;
+                    state_after_idle = CONTD;
+                    // FALLTHROUGH CONTD
+                    break;
+                
+                
+                // xch: exchange dst && src
+                case 0b000110:
+                    regs[src] = dst_content;
+                    regs[dst] = src_content;
+
+                    ip = ip + 1;
+                    state = FETCH;
+                    break;
                 
                 // add: puts dst+src into dst
-                case 0b000110:
+                case 0b000111:
                     alu_op_out = dst_content + src_content;
 
                     // result
@@ -153,22 +163,26 @@ void RaccoonCore::cycle() {
                     } else {
                         CLEAR_BIT(regs[Reg::RFL], 0);
                     }
-                    SET_BIT_TO(regs[Reg::RFL], 1, GET_BIT(alu_op_out, 15))
-                    SET_BIT_TO(regs[Reg::RFL], 2, GET_BIT(alu_op_out, 16))
 
-                    if ((GET_BIT(alu_op_out, 15) == 1 && GET_BIT(dst_content, 15) == 0 && GET_BIT(src_content, 15) == 0) || (GET_BIT(alu_op_out, 15) == 0 && GET_BIT(dst_content, 15) == 1 && GET_BIT(src_content, 15) == 1)) {
+                    SET_BIT_TO(regs[Reg::RFL], 1, GET_BIT(alu_op_out, 15));
+                    SET_BIT_TO(regs[Reg::RFL], 2, GET_BIT(alu_op_out, 16));
+
+                    if ((GET_BIT(alu_op_out, 15) == 1 && GET_BIT(dst_content, 15) == 0 && GET_BIT(src_content, 15) == 0)
+                            ||
+                            (GET_BIT(alu_op_out, 15) == 0 && GET_BIT(dst_content, 15) == 1 && GET_BIT(src_content, 15) == 1)) {
                         SET_BIT(regs[Reg::RFL], 3);
-                    }
-                    else {
+                    } else {
                         CLEAR_BIT(regs[Reg::RFL], 3);
                     }
+
 
                     ip = ip + 1;
                     state = FETCH;
                     break;
                 
                 // sub: put dst-src into dst
-                case 0b000111:
+                case 0b001000:
+                    alu_minus = 0x0000 - src_content;
                     alu_op_out = dst_content - src_content;
 
                     // result
@@ -180,48 +194,113 @@ void RaccoonCore::cycle() {
                     } else {
                         CLEAR_BIT(regs[Reg::RFL], 0);
                     }
-                    SET_BIT_TO(regs[Reg::RFL], 1, GET_BIT(alu_op_out, 15))
-                    SET_BIT_TO(regs[Reg::RFL], 2, GET_BIT(alu_op_out, 16))
 
-                    if ((GET_BIT(alu_op_out, 15) == 1 && GET_BIT(dst_content, 15) == 0 && GET_BIT(-src_content, 15) == 0) || (GET_BIT(alu_op_out, 15) == 0 && GET_BIT(dst_content, 15) == 1 && GET_BIT(-src_content, 15) == 1)) {
+                    SET_BIT_TO(regs[Reg::RFL], 1, GET_BIT(alu_op_out, 15));
+                    SET_BIT_TO(regs[Reg::RFL], 2, GET_BIT(alu_op_out, 16));
+
+                    if ((GET_BIT(alu_op_out, 15) == 1 && GET_BIT(dst_content, 15) == 0 && GET_BIT(alu_minus, 15) == 0)
+                            ||
+                            (GET_BIT(alu_op_out, 15) == 0 && GET_BIT(dst_content, 15) == 1 && GET_BIT(alu_minus, 15) == 1)) {
                         SET_BIT(regs[Reg::RFL], 3);
-                    }
-                    else {
+                    } else {
                         CLEAR_BIT(regs[Reg::RFL], 3);
                     }
-                    
+
                     ip = ip + 1;
                     state = FETCH;
                     break;
                 
-                // cmp: compares dst and src
-                case 0b001000:
+                // cmp: compares dst && src
+                case 0b001001:
+                    alu_minus = 0x0000 - src_content;
                     alu_op_out = dst_content - src_content;
 
-                    if (DOWN_TO(alu_op_out, 15, 0) == 0b0000000000000000) {
+                    if (DOWN_TO(alu_op_out, 15, 0) == 0x0000) {
                         SET_BIT(regs[Reg::RFL], 0);
                     } else {
                         CLEAR_BIT(regs[Reg::RFL], 0);
                     }
-                    SET_BIT_TO(regs[Reg::RFL], 1, GET_BIT(alu_op_out, 15))
-                    SET_BIT_TO(regs[Reg::RFL], 2, GET_BIT(alu_op_out, 16))
 
-                    if ((GET_BIT(alu_op_out, 15) == 1 && GET_BIT(dst_content, 15) == 0 && GET_BIT(-src_content, 15) == 0) || (GET_BIT(alu_op_out, 15) == 0 && GET_BIT(dst_content, 15) == 1 && GET_BIT(-src_content, 15) == 1)) {
+                    SET_BIT_TO(regs[Reg::RFL], 1, GET_BIT(alu_op_out, 15));
+                    SET_BIT_TO(regs[Reg::RFL], 2, GET_BIT(alu_op_out, 16));
+
+                    if ((GET_BIT(alu_op_out, 15) == 1 && GET_BIT(dst_content, 15) == 0 && GET_BIT(alu_minus, 15) == 0)
+                            ||
+                            (GET_BIT(alu_op_out, 15) == 0 && GET_BIT(dst_content, 15) == 1 && GET_BIT(alu_minus, 15) == 1)) {
                         SET_BIT(regs[Reg::RFL], 3);
-                    }
-                    else {
+                    } else {
                         CLEAR_BIT(regs[Reg::RFL], 3);
                     }
 
                     ip = ip + 1;
                     state = FETCH;
                     break;
-                    
+
+                // inc: increment dst
+                case 0b001010:
+                    alu_op_out = dst_content + 0x0001;
+
+                    // result
+                    regs[dst] = DOWN_TO(alu_op_out, 15, 0);
+
+                    // flags
+                    if (DOWN_TO(alu_op_out, 15, 0) == 0x0000) {
+                        SET_BIT(regs[Reg::RFL], 0);
+                    } else {
+                        CLEAR_BIT(regs[Reg::RFL], 0);
+                    }
+
+                    SET_BIT_TO(regs[Reg::RFL], 1, GET_BIT(alu_op_out, 15));
+                    SET_BIT_TO(regs[Reg::RFL], 2, GET_BIT(alu_op_out, 16));
+
+                    if ((GET_BIT(alu_op_out, 15) == 1 && GET_BIT(dst_content, 15) == 0 && GET_BIT(src_content, 15) == 0)
+                            ||
+                            (GET_BIT(alu_op_out, 15) == 0 && GET_BIT(dst_content, 15) == 1 && GET_BIT(src_content, 15) == 1)) {
+                        SET_BIT(regs[Reg::RFL], 3);
+                    } else {
+                        CLEAR_BIT(regs[Reg::RFL], 3);
+                    }
+
+
+                    ip = ip + 1;
+                    state = FETCH;
+                    break;
+                
+                // dec: decrement dst
+                case 0b001011:
+                    alu_minus = 0xFFFF;
+                    alu_op_out = dst_content + alu_minus;
+
+                    // result
+                    regs[dst] = DOWN_TO(alu_op_out, 15, 0);
+
+                    // flags
+                    if (DOWN_TO(alu_op_out, 15, 0) == 0x0000) {
+                        SET_BIT(regs[Reg::RFL], 0);
+                    } else {
+                        CLEAR_BIT(regs[Reg::RFL], 0);
+                    }
+
+                    SET_BIT_TO(regs[Reg::RFL], 1, GET_BIT(alu_op_out, 15));
+                    SET_BIT_TO(regs[Reg::RFL], 2, GET_BIT(alu_op_out, 16));
+
+                    if ((GET_BIT(alu_op_out, 15) == 1 && GET_BIT(dst_content, 15) == 0 && GET_BIT(alu_minus, 15) == 0)
+                            ||
+                            (GET_BIT(alu_op_out, 15) == 0 && GET_BIT(dst_content, 15) == 1 && GET_BIT(alu_minus, 15) == 1)) {
+                        SET_BIT(regs[Reg::RFL], 3);
+                    } else {
+                        CLEAR_BIT(regs[Reg::RFL], 3);
+                    }
+
+                    ip = ip + 1;
+                    state = FETCH;
+                    break;
+
                 // mul: put dst*src into d:dst
-                case 0b001001:
+                case 0b001100:
                     mult_tmp = dst_content*src_content;
 
-                    regs[dst] = DOWN_TO(mult_tmp, 15, 0);
+                    regs[dst] = DOWN_TO(mult_tmp, 15, 0); 
                     regs[Reg::RXT] = DOWN_TO(mult_tmp, 31, 16);
 
                     // TODO: fill flags correctly
@@ -243,37 +322,9 @@ void RaccoonCore::cycle() {
                     state = FETCH;
                     break;
 
-                    
-                // inc: increment dst
-                // note: temporarily doesn't update flags
-                case 0b001010:
-                    tmp = dst_content + 0x0001;
-
-                    regs[dst] = tmp;
-
-                    ip = ip + 1;
-                    state = FETCH;
-                    break;
                 
-                // dec: decrement dst
-                // note: temporarily only updates zf
-                case 0b001011:
-                    tmp = dst_content - 0x0001;
-
-                    regs[dst] = tmp;
-
-                    if (tmp == 0x0000) {
-                        SET_BIT(regs[Reg::RFL], 0);
-                    } else {
-                        CLEAR_BIT(regs[Reg::RFL], 0);
-                    }
-
-                    ip = ip + 1;
-                    state = FETCH;
-                    break;
-                    
                 // xor: dst == dst ^ b
-                case 0b001100:
+                case 0b001101:
                     tmp = dst_content ^ src_content;
                     regs[dst] = tmp;
 
@@ -282,15 +333,15 @@ void RaccoonCore::cycle() {
                     } else {
                         CLEAR_BIT(regs[Reg::RFL], 0);
                     }
-                    SET_BIT_TO(regs[Reg::RFL], 1, GET_BIT(tmp, 15))
+                    SET_BIT_TO(regs[Reg::RFL], 1, GET_BIT(tmp, 15));
                     CLEAR_BIT(regs[Reg::RFL], 2);
 
                     ip = ip + 1;
                     state = FETCH;
                     break;
                 
-                // and: dst == dst and src
-                case 0b001101:
+                // and: dst == dst && src
+                case 0b001110:
                     tmp = dst_content & src_content;
                     regs[dst] = tmp;
 
@@ -299,15 +350,15 @@ void RaccoonCore::cycle() {
                     } else {
                         CLEAR_BIT(regs[Reg::RFL], 0);
                     }
-                    SET_BIT_TO(regs[Reg::RFL], 1, GET_BIT(tmp, 15))
+                    SET_BIT_TO(regs[Reg::RFL], 1, GET_BIT(tmp, 15));
                     CLEAR_BIT(regs[Reg::RFL], 2);
 
                     ip = ip + 1;
                     state = FETCH;
                     break;
 
-                // or: dst == dst or src
-                case 0b001110:
+                // or: dst == dst || src
+                case 0b001111:
                     tmp = dst_content | src_content;
                     regs[dst] = tmp;
 
@@ -316,7 +367,7 @@ void RaccoonCore::cycle() {
                     } else {
                         CLEAR_BIT(regs[Reg::RFL], 0);
                     }
-                    SET_BIT_TO(regs[Reg::RFL], 1, GET_BIT(tmp, 15))
+                    SET_BIT_TO(regs[Reg::RFL], 1, GET_BIT(tmp, 15));
                     CLEAR_BIT(regs[Reg::RFL], 2);
 
                     ip = ip + 1;
@@ -324,7 +375,7 @@ void RaccoonCore::cycle() {
                     break;
                 
                 // shl: shift left
-                case 0b001111: 
+                case 0b010000: 
                     regs[dst] = dst_content << src;
 
                     ip = ip + 1;
@@ -332,15 +383,50 @@ void RaccoonCore::cycle() {
                     break;
 
                 // shr: shift right
-                case 0b010000:
+                case 0b010001:
                     regs[dst] = dst_content >> src;
 
                     ip = ip + 1;
                     state = FETCH;
                     break;
 
+                // push (r): push dst
+                case 0b010010:
+                    // write dst_content into [rsp - 1]
+                    MEM_ADDR = regs[Reg::RSP] - 1;
+                    MEM_IN = dst_content;
+                    MEM_WE = 1;
+
+                    // decrement dst
+                    regs[Reg::RSP] = regs[Reg::RSP] - 1;
+
+                    ip = ip + 1;
+                    state_after_idle = FETCH;
+                    state = IDLE;
+                    break;
+
+                // push (i): push imm
+                case 0b010011:
+                    MEM_ADDR = ip + 1;
+                    regs[Reg::RSP] = regs[Reg::RSP] - 1;
+
+                    state_after_idle = CONTD;
+                    state = IDLE;
+                    break;
+
+                // pop: pop to dst
+                case 0b010100:
+                    MEM_ADDR = regs[Reg::RSP];
+
+                    regs[Reg::RSP] = regs[Reg::RSP] + 1;
+                    
+                    state_after_idle = CONTD;
+                    state = IDLE;
+                    break;
+
                 // jmp: jump to dst
-                case 0b010001:
+                case 0b010110:
+                case 0b010111:
                     switch (DOWN_TO(src, 3, 0)) {
                         // bit 0: 0 indicates equality
                         // bit 1: 0 indicates >
@@ -361,25 +447,25 @@ void RaccoonCore::cycle() {
                             break;
                         // >
                         case 0b1101:
-                            jmp_cond_ok = ((!GET_BIT(regs[Reg::RFL], 1)) ^ GET_BIT(regs[Reg::RFL], 3)) && (!GET_BIT(regs[Reg::RFL], 0));
+                            jmp_cond_ok = !(GET_BIT(regs[Reg::RFL], 1) ^ GET_BIT(regs[Reg::RFL], 3)) && !GET_BIT(regs[Reg::RFL], 0);
                             break;
                         // >=
                         case 0b1100:
-                            jmp_cond_ok = ((!GET_BIT(regs[Reg::RFL], 1)) ^ GET_BIT(regs[Reg::RFL], 3));
+                            jmp_cond_ok = !(GET_BIT(regs[Reg::RFL], 1) ^ GET_BIT(regs[Reg::RFL], 3));
                             break;
                         // <
                         case 0b1011:
                             jmp_cond_ok = GET_BIT(regs[Reg::RFL], 1) ^ GET_BIT(regs[Reg::RFL], 3);
                             break;
-                        // <=
+                        // =
                         case 0b1010:
                             jmp_cond_ok = (GET_BIT(regs[Reg::RFL], 1) ^ GET_BIT(regs[Reg::RFL], 3)) || GET_BIT(regs[Reg::RFL], 0);
                             break;
                         // above
                         case 0b0101:
-                            jmp_cond_ok = (!GET_BIT(regs[Reg::RFL], 2)) && (!GET_BIT(regs[Reg::RFL], 0));
+                            jmp_cond_ok = !GET_BIT(regs[Reg::RFL], 2) && !GET_BIT(regs[Reg::RFL], 0);
                             break;
-                        // above or equal
+                        // above || equal
                         case 0b0100:
                             jmp_cond_ok = !GET_BIT(regs[Reg::RFL], 2);
                             break;
@@ -387,118 +473,84 @@ void RaccoonCore::cycle() {
                         case 0b0011:
                             jmp_cond_ok = GET_BIT(regs[Reg::RFL], 2);
                             break;
-                        // below or equal
+                        // below || equal
                         case 0b0010:
                             jmp_cond_ok = GET_BIT(regs[Reg::RFL], 2) || GET_BIT(regs[Reg::RFL], 0);
                             break;
+                        default:
+                            jmp_cond_ok = 0;
+                            break;
                     }
 
-                    // condition ok
+
                     if (jmp_cond_ok == 1) {
-
-                        // jump immediate
-                        if (GET_BIT(src, 4) == 1) {
-                            MEM_ADDR = ip + 1;
-
-                            state_after_idle = CONTD;
-                            state = IDLE;
-                        
-                        
-                        // jmp to register
-                        } else {
-                            ip = dst_content;
-                            state = FETCH;
+                        switch ((opcode)) {
+                            case 0b010110:
+                                ip = dst_content;
+                                state = FETCH;
+                                break;
+                            default:
+                                MEM_ADDR = ip + 1;
+                                state_after_idle = CONTD;
+                                state = IDLE;
+                                break;
                         }
-
-                    // condition not ok, jmp from immediate
-                    } else if (GET_BIT(src, 4) == 1) {
-                        ip = ip + 2;
-                        state = FETCH;
-
-                    // condition not ok, jmp from register
                     } else {
-                        ip = ip + 1;
+                        switch ((opcode)) {
+                            case 0b010110:
+                                ip = ip + 1;
+                                break;
+                            default:
+                                ip = ip + 2;
+                                break;
+                        }
                         state = FETCH;
                     }
+                    
                     // END jmp
-                    break;
-                    
-                // psi: push immediate
-                case 0b010010:
-                    MEM_ADDR = ip + 1;
-                    regs[Reg::RSP] = regs[Reg::RSP] - 1;
-
-                    state_after_idle = CONTD;
-                    state = IDLE;
-                    break;
-
-                // psh: push dst
-                case 0b010011:
-                    // write dst_content into [rsp - 1]
-                    MEM_ADDR = regs[Reg::RSP] - 1;
-                    MEM_IN = dst_content;
-                    MEM_WE = 1;
-
-                    // decrement dst
-                    regs[Reg::RSP] = regs[Reg::RSP] - 1;
-
-                    ip = ip + 1;
-                    state_after_idle = FETCH;
-                    state = IDLE;
-                    break;
-
-                // pop: pop to dst
-                case 0b010100:
-                    MEM_ADDR = regs[Reg::RSP];
-
-                    regs[Reg::RSP] = regs[Reg::RSP] + 1;
-                    
-                    state_after_idle = CONTD;
-                    state = IDLE;
-                    break;
-                
-                // hlt: halt
-                case 0b010101:
-                    state = FETCH;
-                    break;
-
-                // ret: return using IP from stack
-                case 0b010110:
-                    MEM_ADDR = regs[Reg::RSP];
-
-                    regs[Reg::RSP] = regs[Reg::RSP] + 1;
-                    
-                    state_after_idle = CONTD;
-                    state = IDLE;
-                    break;
-
-                // ldi: puts [imm] in dst
-                case 0b010111:
-                    MEM_ADDR = ip + 1;
-
-                    state_after_idle = CONTD;
-                    state = IDLE;
                     break;
 
                 // call: puts ip + 1 on the stack, jumps to location
                 case 0b011000:
+                case 0b011001:
                     MEM_ADDR = regs[Reg::RSP] - 1;
                     MEM_WE = 1;
 
                     regs[Reg::RSP] = regs[Reg::RSP] - 1;
 
-                    if (GET_BIT(src, 4) == 1) {
-                        MEM_IN = ip + 2;
+                    switch ((opcode)) {
+                        case 0b011000:
+                            MEM_IN = ip + 1;
 
-                        state_after_idle = CONTD;
-                    } else {
-                        MEM_IN = ip + 1;
+                            ip = dst_content;
+                            state_after_idle = FETCH;
+                            break;
+                        default: 
+                            MEM_IN = ip + 2;
 
-                        ip = dst_content;
-                        state_after_idle = FETCH;
+                            state_after_idle = CONTD;
+                            break;
                     }
 
                     state = IDLE;
+                    break;
+
+                // ret: return using IP from stack
+                case 0b011010:
+                    MEM_ADDR = regs[Reg::RSP];
+
+                    regs[Reg::RSP] = regs[Reg::RSP] + 1;
+                    
+                    state_after_idle = CONTD;
+                    state = IDLE;
+                    break;
+
+                // hlt: halt
+                case 0b011011:
+                    state = FETCH;
+                    break;
+
+                default:
                     break;
             }
             break;
@@ -512,24 +564,24 @@ void RaccoonCore::cycle() {
             src_content = src_content_contd;
 
             switch (opcode) {
-                // mvi: put imm into dst
+                // ld (r): load [src] into dst
                 case 0b000000:
-                    regs[dst] = MEM_OUT;
-
-                    ip = ip + 2;
-                    state = FETCH;
-                    break;
-                    
-                // ldr: load [src] into dst
-                case 0b000011:
                     regs[dst] = MEM_OUT;
 
                     ip = ip + 1;
                     state = FETCH;
                     break;
-                    
-                // sti: stores src into [imm]
-                case 0b000100:
+
+                // ld (i): puts [imm] in dst
+                case 0b000001:
+                    MEM_ADDR = MEM_OUT;
+
+                    state_after_idle = CONTD2;
+                    state = IDLE;
+                    break;
+
+                // st (i): stores src into [imm]
+                case 0b000011:
                     MEM_ADDR = MEM_OUT;
                     MEM_IN = src_content;
                     MEM_WE = 1;
@@ -538,15 +590,17 @@ void RaccoonCore::cycle() {
                     state_after_idle = FETCH;
                     state = IDLE;
                     break;
-                
-                // jmp: contd for immediate
-                case 0b010001:
-                    ip = MEM_OUT;
-                    state = FETCH;    
-                    break;           
 
+                // ldi: put imm into dst
+                case 0b000101:
+                    regs[dst] = MEM_OUT;
+
+                    ip = ip + 2;
+                    state = FETCH;
+                    break;
+                
                 // psi: push immediate
-                case 0b010010:
+                case 0b010011:
                     MEM_ADDR = regs[Reg::RSP];
                     MEM_IN = MEM_OUT;
                     MEM_WE = 1;
@@ -563,29 +617,30 @@ void RaccoonCore::cycle() {
                     ip = ip + 1;
                     state = FETCH;
                     break;
-
-                // ret: return using IP from the stack
-                case 0b010110:
-                    ip = MEM_OUT;
-                    state = FETCH;
-                    break;
                 
-                // ldi: puts [imm] in dst
+                // jmp: contd for immediate
                 case 0b010111:
-                    MEM_ADDR = MEM_OUT;
-
-                    state_after_idle = CONTD2;
-                    state = IDLE;
-                    break;
+                    ip = MEM_OUT;
+                    state = FETCH;    
+                    break;           
 
                 // call: puts ip + 1 on the stack, jumps to location
-                case 0b011000:
+                case 0b011001:
                     // if here, immediate value jump
                     MEM_ADDR = ip + 1;
                     MEM_WE = 0;
 
                     state_after_idle = CONTD2;
                     state = IDLE;
+                    break;
+
+                // ret: return using IP from the stack
+                case 0b011010:
+                    ip = MEM_OUT;
+                    state = FETCH;
+                    break;
+
+                default:
                     break;
             }
             break;
@@ -596,8 +651,8 @@ void RaccoonCore::cycle() {
             dst_content = dst_content_contd;
 
             switch (opcode) {
-                // ld: puts [imm] in dst
-                case 0b010111:
+                // ld (i): puts [imm] in dst
+                case 0b000001:
                     regs[dst] = MEM_OUT;
 
                     ip = ip + 2;
@@ -605,10 +660,13 @@ void RaccoonCore::cycle() {
                     break;
 
                 // call: puts ip + 1 on the stack, jumps to location
-                case 0b011000:
+                case 0b011001:
                     // if here, immediate value jump
                     ip = MEM_OUT;
                     state = FETCH;
+                    break;
+
+                default:
                     break;
             }
             break;
@@ -622,8 +680,7 @@ uint16_t RaccoonCore::getRegister(Reg reg) {
 void RaccoonCore::memCycle() {
     if (MEM_WE) {
         _mapper->write(MEM_ADDR, MEM_IN);
-    }
-    else {
+    } else {
         MEM_OUT = _mapper->read(MEM_ADDR);
     }
 }

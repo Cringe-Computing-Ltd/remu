@@ -3,6 +3,7 @@
 
 RaccoonCore::RaccoonCore(MemoryMapper* mapper) {
     _mapper = mapper;
+    memset(regs, 0, sizeof(regs));
 }
 
 void RaccoonCore::halt(bool halted) {
@@ -41,7 +42,7 @@ void RaccoonCore::cycle() {
 
     switch (state) {
         case FETCH:
-            if (INTERRUPT == 1 && last_interrupt == 0 && GET_BIT(regs[Reg::RFL], 3) == 1) {
+            if (INTERRUPT == 1 && last_interrupt == 0 && GET_BIT(regs[Reg::RFL], 4) == 1) {
                 MEM_ADDR = regs[Reg::RSP] - 1;
                 MEM_WE = 1;
                 MEM_IN = ip;
@@ -155,6 +156,13 @@ void RaccoonCore::cycle() {
                     SET_BIT_TO(regs[Reg::RFL], 1, GET_BIT(alu_op_out, 15))
                     SET_BIT_TO(regs[Reg::RFL], 2, GET_BIT(alu_op_out, 16))
 
+                    if ((GET_BIT(alu_op_out, 15) == 1 && GET_BIT(dst_content, 15) == 0 && GET_BIT(src_content, 15) == 0) || (GET_BIT(alu_op_out, 15) == 0 && GET_BIT(dst_content, 15) == 1 && GET_BIT(src_content, 15) == 1)) {
+                        SET_BIT(regs[Reg::RFL], 3);
+                    }
+                    else {
+                        CLEAR_BIT(regs[Reg::RFL], 3);
+                    }
+
                     ip = ip + 1;
                     state = FETCH;
                     break;
@@ -174,6 +182,13 @@ void RaccoonCore::cycle() {
                     }
                     SET_BIT_TO(regs[Reg::RFL], 1, GET_BIT(alu_op_out, 15))
                     SET_BIT_TO(regs[Reg::RFL], 2, GET_BIT(alu_op_out, 16))
+
+                    if ((GET_BIT(alu_op_out, 15) == 1 && GET_BIT(dst_content, 15) == 0 && GET_BIT(-src_content, 15) == 0) || (GET_BIT(alu_op_out, 15) == 0 && GET_BIT(dst_content, 15) == 1 && GET_BIT(-src_content, 15) == 1)) {
+                        SET_BIT(regs[Reg::RFL], 3);
+                    }
+                    else {
+                        CLEAR_BIT(regs[Reg::RFL], 3);
+                    }
                     
                     ip = ip + 1;
                     state = FETCH;
@@ -190,6 +205,13 @@ void RaccoonCore::cycle() {
                     }
                     SET_BIT_TO(regs[Reg::RFL], 1, GET_BIT(alu_op_out, 15))
                     SET_BIT_TO(regs[Reg::RFL], 2, GET_BIT(alu_op_out, 16))
+
+                    if ((GET_BIT(alu_op_out, 15) == 1 && GET_BIT(dst_content, 15) == 0 && GET_BIT(-src_content, 15) == 0) || (GET_BIT(alu_op_out, 15) == 0 && GET_BIT(dst_content, 15) == 1 && GET_BIT(-src_content, 15) == 1)) {
+                        SET_BIT(regs[Reg::RFL], 3);
+                    }
+                    else {
+                        CLEAR_BIT(regs[Reg::RFL], 3);
+                    }
 
                     ip = ip + 1;
                     state = FETCH;
@@ -320,37 +342,54 @@ void RaccoonCore::cycle() {
                 // jmp: jump to dst
                 case 0b010001:
                     switch (DOWN_TO(src, 3, 0)) {
+                        // bit 0: 0 indicates equality
+                        // bit 1: 0 indicates >
+                        // bit 2: 0 indicates <
+                        // bit 3: 0 indicates unsignedness (no regard on sign)
+
                         // unconditional
                         case 0b0000:
                             jmp_cond_ok = 1;
                             break;
                         // ==
-                        case 0b1110:
+                        case 0b0110:
                             jmp_cond_ok = GET_BIT(regs[Reg::RFL], 0);
                             break;
                         // !=
-                        case 0b1111:
+                        case 0b0001:
                             jmp_cond_ok = !GET_BIT(regs[Reg::RFL], 0);
                             break;
                         // >
-                        case 0b1000:
-                            jmp_cond_ok = !GET_BIT(regs[Reg::RFL],1) && !GET_BIT(regs[Reg::RFL], 0);
+                        case 0b1101:
+                            jmp_cond_ok = ((!GET_BIT(regs[Reg::RFL], 1)) ^ GET_BIT(regs[Reg::RFL], 3)) && (!GET_BIT(regs[Reg::RFL], 0));
                             break;
                         // >=
-                        case 0b1001:
-                            jmp_cond_ok = !GET_BIT(regs[Reg::RFL],1);
+                        case 0b1100:
+                            jmp_cond_ok = ((!GET_BIT(regs[Reg::RFL], 1)) ^ GET_BIT(regs[Reg::RFL], 3));
                             break;
                         // <
-                        case 0b0100:
-                            jmp_cond_ok = GET_BIT(regs[Reg::RFL],1);
+                        case 0b1011:
+                            jmp_cond_ok = GET_BIT(regs[Reg::RFL], 1) ^ GET_BIT(regs[Reg::RFL], 3);
                             break;
                         // <=
-                        case 0b0101:
-                            jmp_cond_ok = GET_BIT(regs[Reg::RFL],1) || GET_BIT(regs[Reg::RFL], 0);
+                        case 0b1010:
+                            jmp_cond_ok = (GET_BIT(regs[Reg::RFL], 1) ^ GET_BIT(regs[Reg::RFL], 3)) || GET_BIT(regs[Reg::RFL], 0);
                             break;
-                        // carry
-                        case 0b0001:
-                            jmp_cond_ok = GET_BIT(regs[Reg::RFL],2);
+                        // above
+                        case 0b0101:
+                            jmp_cond_ok = (!GET_BIT(regs[Reg::RFL], 2)) && (!GET_BIT(regs[Reg::RFL], 0));
+                            break;
+                        // above or equal
+                        case 0b0100:
+                            jmp_cond_ok = !GET_BIT(regs[Reg::RFL], 2);
+                            break;
+                        // below / carry set
+                        case 0b0011:
+                            jmp_cond_ok = GET_BIT(regs[Reg::RFL], 2);
+                            break;
+                        // below or equal
+                        case 0b0010:
+                            jmp_cond_ok = GET_BIT(regs[Reg::RFL], 2) || GET_BIT(regs[Reg::RFL], 0);
                             break;
                     }
 
@@ -574,6 +613,10 @@ void RaccoonCore::cycle() {
             }
             break;
     }
+}
+
+uint16_t RaccoonCore::getRegister(Reg reg) {
+    return regs[reg];
 }
 
 void RaccoonCore::memCycle() {

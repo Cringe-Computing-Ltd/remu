@@ -49,6 +49,8 @@ public:
     void cycle();
     void memCycle();
 
+    uint16_t getRegister(Reg reg);
+
 private:
     MemoryMapper* _mapper;
 

@@ -79,13 +79,10 @@ int main(int argc, char* argv[]) {
             }
         }
 
-        // Interrupt cycles
-        cpu.interrupt(true);
-        cpu.run(1000);
-        cpu.interrupt(false);
-
         // Execute cycles
-        cpu.run(cycles - 1000);
+        cpu.run(cycles);
+
+        //printf("R0: 0x%04X\n", cpu.getRegister(RaccoonCore::Reg::R0));
 
         // Render
         vga.render(fb);

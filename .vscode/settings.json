@@ -47,6 +47,12 @@
         "list": "cpp",
         "vector": "cpp",
         "xhash": "cpp",
-        "xtree": "cpp"
+        "xtree": "cpp",
+        "array": "cpp",
+        "chrono": "cpp",
+        "filesystem": "cpp",
+        "format": "cpp",
+        "forward_list": "cpp",
+        "algorithm": "cpp"
     }
 }
